@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2023 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -185,10 +185,11 @@ do_pre_decrypt_check(struct multi_context *m,
  */
 
 struct multi_instance *
-multi_get_create_instance_udp(struct multi_context *m, bool *floated)
+multi_get_create_instance_udp(struct multi_context *m, bool *floated,
+                              struct link_socket *ls)
 {
     struct gc_arena gc = gc_new();
-    struct mroute_addr real;
+    struct mroute_addr real = {0};
     struct multi_instance *mi = NULL;
     struct hash *hash = m->hash;
 
@@ -256,7 +257,7 @@ multi_get_create_instance_udp(struct multi_context *m, bool *floated)
                      * connect-freq but not against connect-freq-initial */
                     reflect_filter_rate_limit_decrease(m->initial_rate_limiter);
 
-                    mi = multi_create_instance(m, &real);
+                    mi = multi_create_instance(m, &real, ls);
                     if (mi)
                     {
                         hash_add_fast(hash, bucket, &mi->real, hv, mi);
@@ -317,7 +318,7 @@ multi_process_outgoing_link(struct multi_context *m, const unsigned int mpp_flag
         msg_set_prefix("Connection Attempt");
         m->top.c2.to_link = m->hmac_reply;
         m->top.c2.to_link_addr = m->hmac_reply_dest;
-        process_outgoing_link(&m->top);
+        process_outgoing_link(&m->top, m->top.c2.link_sockets[0]);
         m->hmac_reply_dest = NULL;
     }
 }
@@ -326,7 +327,7 @@ multi_process_outgoing_link(struct multi_context *m, const unsigned int mpp_flag
  * Process an I/O event.
  */
 static void
-multi_process_io_udp(struct multi_context *m)
+multi_process_io_udp(struct multi_context *m, struct link_socket *sock)
 {
     const unsigned int status = m->top.c2.event_set_status;
     const unsigned int mpp_flags = m->top.c2.fast_io
@@ -380,10 +381,10 @@ multi_process_io_udp(struct multi_context *m)
     /* Incoming data on UDP port */
     else if (status & SOCKET_READ)
     {
-        read_incoming_link(&m->top);
+        read_incoming_link(&m->top, sock);
         if (!IS_SIG(&m->top))
         {
-            multi_process_incoming_link(m, NULL, mpp_flags);
+            multi_process_incoming_link(m, NULL, mpp_flags, sock);
         }
     }
     /* Incoming data on TUN device */
@@ -514,7 +515,11 @@ tunnel_server_udp(struct context *top)
         else
         {
             /* process I/O */
-            multi_process_io_udp(&multi);
+
+            /* Since there's only one link_socket just use the first, in an upcoming
+             * patch this will be changed by using the link_socket returned by the
+             * event set */
+            multi_process_io_udp(&multi, top->c2.link_sockets[0]);
             MULTI_CHECK_SIG(&multi);
         }
 

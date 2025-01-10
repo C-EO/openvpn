@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2023 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -57,9 +57,6 @@ void multi_tcp_dereference_instance(struct multi_tcp *mtcp, struct multi_instanc
 bool multi_tcp_instance_specific_init(struct multi_context *m, struct multi_instance *mi);
 
 void multi_tcp_instance_specific_free(struct multi_instance *mi);
-
-void multi_tcp_link_out_deferred(struct multi_context *m, struct multi_instance *mi);
-
 
 /**************************************************************************/
 /**

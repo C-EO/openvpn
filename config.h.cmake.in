@@ -35,6 +35,9 @@
 /* Enable LZO compression library */
 #cmakedefine ENABLE_LZO
 
+/* Enable NTLMv2 proxy support */
+#define ENABLE_NTLM 1
+
 /* Enable management server capability */
 #define ENABLE_MANAGEMENT 1
 
@@ -61,9 +64,6 @@
 
 /* Enable --x509-username-field feature */
 #cmakedefine ENABLE_X509ALTUSERNAME
-
-/* Compiler supports anonymous unions */
-#define HAVE_ANONYMOUS_UNION_SUPPORT
 
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #cmakedefine HAVE_ARPA_INET_H 1
@@ -140,7 +140,7 @@ don't. */
 #cmakedefine HAVE_GETPWNAM
 
 /* Define to 1 if you have the `getrlimit' function. */
-#undef HAVE_GETRLIMIT
+#cmakedefine HAVE_GETRLIMIT
 
 /* Define to 1 if you have the `getsockname' function. */
 #cmakedefine HAVE_GETSOCKNAME
@@ -175,14 +175,8 @@ don't. */
 /* Define to 1 if you have the <linux/types.h> header file. */
 #cmakedefine HAVE_LINUX_TYPES_H
 
-/* Define to 1 if you have the <lzoconf.h> header file. */
-#define HAVE_LZO_CONF_H
-
 /* Define to 1 if you have the <lzo1x.h> header file. */
 #define HAVE_LZO1X_H 1
-
-/* Define to 1 if you have the <lzoutil.h> header file. */
-#define HAVE_LZOUTIL_H 1
 
 /* Define to 1 if you have the `mlockall' function. */
 #cmakedefine HAVE_MLOCKALL
@@ -208,14 +202,11 @@ don't. */
 /* Define to 1 if you have the <net/if_tun.h> header file. */
 #cmakedefine HAVE_NET_IF_TUN_H
 
-/* Define to 1 if you have the <net/if_utun.h> header file. */
-#cmakedefine01 HAVE_NET_IF_UTUN_H
-
 /* Define to 1 if you have the <net/tun/if_tun.h> header file. */
 #cmakedefine HAVE_NET_TUN_IF_TUN_H
 
 /* Define to 1 if you have the `nice' function. */
-#undef HAVE_NICE
+#cmakedefine HAVE_NICE
 
 /* Define to 1 if you have the `openlog' function. */
 #cmakedefine HAVE_OPENLOG
@@ -235,8 +226,6 @@ don't. */
 /* Define to 1 if you have the <pwd.h> header file. */
 #cmakedefine HAVE_PWD_H
 
-/* Define to 1 if you have the `readv' function. */
-#undef HAVE_READV
 
 /* Define to 1 if you have the `recvmsg' function. */
 #cmakedefine HAVE_RECVMSG
@@ -336,7 +325,7 @@ don't. */
 #cmakedefine HAVE_SYS_SOCKET_H
 
 /* Define to 1 if you have the <sys/sockio.h> header file. */
-#undef HAVE_SYS_SOCKIO_H
+#cmakedefine HAVE_SYS_SOCKIO_H
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #define HAVE_SYS_STAT_H 1
@@ -374,20 +363,17 @@ don't. */
 /* Define to 1 if you have the <valgrind/memcheck.h> header file. */
 #undef HAVE_VALGRIND_MEMCHECK_H
 
-/* Define to 1 if you have the <versionhelpers.h> header file. */
-#undef HAVE_VERSIONHELPERS_H
-
 /* Define to 1 if you have the `vfork' function. */
 #undef HAVE_VFORK
 
 /* Define to 1 if you have the <vfork.h> header file. */
 #undef HAVE_VFORK_H
 
-/* Define to 1 if you have the `vsnprintf' function. */
-#undef HAVE_VSNPRINTF
-
-/* we always assume a recent mbed TLS version */
-#define HAVE_CTR_DRBG_UPDATE_RET 1
+/* Availability of different mbed TLS features and APIs */
+#cmakedefine01 HAVE_MBEDTLS_PSA_CRYPTO_H
+#define HAVE_MBEDTLS_SSL_TLS_PRF 1
+#cmakedefine01 HAVE_MBEDTLS_SSL_SET_EXPORT_KEYS_CB
+#cmakedefine01 HAVE_MBEDTLS_CTR_DRBG_UPDATE_RET
 
 /* Path to ifconfig tool */
 #define IFCONFIG_PATH "@IFCONFIG_PATH@"
@@ -440,6 +426,9 @@ don't. */
 /* Are we running on Linux? */
 #cmakedefine TARGET_LINUX
 
+/* Are we running on Solaris/OpenIndiana? */
+#cmakedefine TARGET_SOLARIS
+
 /* Are we running WIN32? */
 #cmakedefine TARGET_WIN32
 
@@ -450,8 +439,10 @@ don't. */
 # define _GNU_SOURCE 1
 #endif
 
-
-#if defined(_WIN32)
+/* if inttypes.h is included this breaks rc.exe when using the ClangCL
+ * Toolchain as it pulls in a inttypes.h variant for clang that rc.exe does
+ * not understand (#include_next preprocessor directive) */
+#if defined(_WIN32) && !defined(RC_INVOKED)
 #include <inttypes.h>
 typedef uint32_t in_addr_t;
 typedef uint16_t in_port_t;
@@ -463,14 +454,14 @@ typedef uint16_t in_port_t;
 #define SIGTERM   15
 #endif
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(RC_INVOKED)
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
 #define strncasecmp strnicmp
 #define strcasecmp _stricmp
 
-#define S_IRUSR 0
-#define S_IWUSR 0
+#define S_IRUSR _S_IREAD
+#define S_IWUSR _S_IWRITE
 #define R_OK 4
 #define W_OK 2
 #define X_OK 1

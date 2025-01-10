@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2023 OpenVPN Technologies, Inc. <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Technologies, Inc. <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -155,6 +155,10 @@ openvpn_execve(const struct argv *a, const struct env_set *es, const unsigned in
             {
                 msg(M_ERR, "openvpn_execve: unable to fork");
             }
+            else if (flags & S_NOWAITPID)
+            {
+                ret = pid;
+            }
             else /* parent side */
             {
                 if (waitpid(pid, &ret, 0) != pid)
@@ -203,6 +207,11 @@ openvpn_execve_check(const struct argv *a, const struct env_set *es, const unsig
         {
             goto done;
         }
+    }
+    else if (flags & S_NOWAITPID && (stat > 0))
+    {
+        ret = stat;
+        goto done;
     }
     else if (platform_system_ok(stat))
     {

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.14)
 set(CMAKE_CONFIGURATION_TYPES "Release;Debug;ASAN")
 project(openvpn)
 
@@ -32,6 +32,8 @@ if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.h")
 endif ()
 
 option(MBED "BUILD with mbed" OFF)
+set(MBED_INCLUDE_PATH "" CACHE STRING "Path to mbed TLS include directory")
+set(MBED_LIBRARY_PATH "" CACHE STRING "Path to mbed library directory")
 option(WOLFSSL "BUILD with wolfSSL" OFF)
 option(ENABLE_LZ4 "BUILD with lz4" ON)
 option(ENABLE_LZO "BUILD with lzo" ON)
@@ -39,6 +41,19 @@ option(ENABLE_PKCS11 "BUILD with pkcs11-helper" ON)
 option(USE_WERROR "Treat compiler warnings as errors (-Werror)" ON)
 
 set(PLUGIN_DIR /usr/local/lib/openvpn/plugins CACHE FILEPATH "Location of the plugin directory")
+
+# Create machine readable compile commands
+option(ENABLE_COMPILE_COMMANDS "Generate compile_commands.json and a symlink for clangd to find it" OFF)
+if (ENABLE_COMPILE_COMMANDS)
+    if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/build AND NOT IS_SYMLINK ${CMAKE_CURRENT_SOURCE_DIR}/build)
+        message(FATAL_ERROR "The top level source directory contains a 'build' file or directory. Please remove or rename it. CMake creates a symlink with that name during build.")
+    endif()
+    set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+    add_custom_target(
+        symlink-build-dir ALL
+        ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/build
+        )
+endif ()
 
 # AddressSanitize - use CXX=clang++ CC=clang cmake -DCMAKE_BUILD_TYPE=asan to build with ASAN
 set(CMAKE_C_FLAGS_ASAN
@@ -79,10 +94,6 @@ if (MSVC)
         add_link_options("$<$<CONFIG:Release>:/CETCOMPAT>")
     endif()
 else ()
-    set(CMAKE_C_FLAGS_RELEASE "-O2")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O2")
-    set(CMAKE_C_FLAGS_DEBUG "-g -O1")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -O1")
     add_compile_options(-Wall -Wuninitialized)
     check_c_compiler_flag(-Wno-stringop-truncation NoStringOpTruncation)
 
@@ -96,9 +107,9 @@ else ()
     endif ()
 endif ()
 
-find_program(PYTHON NAMES python3 python)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 execute_process(
-    COMMAND ${PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/contrib/cmake/parse-version.m4.py ${CMAKE_CURRENT_SOURCE_DIR}/version.m4
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/contrib/cmake/parse-version.m4.py ${CMAKE_CURRENT_SOURCE_DIR}/version.m4
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
 include(${CMAKE_CURRENT_BINARY_DIR}/version.cmake)
@@ -108,7 +119,7 @@ set(OPENVPN_VERSION_MINOR ${PRODUCT_VERSION_MINOR})
 set(OPENVPN_VERSION_PATCH ${PRODUCT_VERSION_PATCH})
 set(OPENVPN_VERSION_RESOURCE ${PRODUCT_VERSION_RESOURCE})
 
-set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD 11)
 
 # Set the various defines for config.h.cmake.in
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
@@ -120,16 +131,22 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     set(ENABLE_FEATURE_TUN_PERSIST 1)
     set(HAVE_LINUX_TYPES_H 1)
     set(ENABLE_DCO YES)
-    set(HAVE_CMSGHDR YES)
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
     set(TARGET_FREEBSD YES)
     set(ENABLE_DCO YES)
     link_libraries(-lnv)
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "OpenBSD")
+    set(TARGET_OPENBSD YES)
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "SunOS")
+    set(TARGET_SOLARIS YES)
+    set(HAVE_SYS_SOCKIO_H 1)
+    link_libraries(-lnsl -lsocket -lresolv)
 elseif (WIN32)
     set(ENABLE_DCO YES)
 elseif (APPLE)
     set(TARGET_DARWIN YES)
-    set(HAVE_NET_IF_UTUN_H YES)
+else()
+    message(FATAL_ERROR "Unknown system name: \"${CMAKE_SYSTEM_NAME}\"")
 endif ()
 
 if (UNIX)
@@ -148,10 +165,11 @@ check_symbol_exists(dup2 unistd.h HAVE_DUP2)
 check_symbol_exists(fork unistd.h HAVE_FORK)
 check_symbol_exists(execve unistd.h HAVE_EXECVE)
 check_symbol_exists(ftruncate unistd.h HAVE_FTRUNCATE)
+check_symbol_exists(nice unistd.h HAVE_NICE)
 check_symbol_exists(setgid unistd.h HAVE_SETGID)
 check_symbol_exists(setuid unistd.h HAVE_SETUID)
 check_symbol_exists(setsid unistd.h HAVE_SETSID)
-check_symbol_exists(getpeereid unistd.h HAVE_GETPEEREID)
+check_symbol_exists(getpeereid "unistd.h;sys/socket.h" HAVE_GETPEEREID)
 
 check_symbol_exists(epoll_create sys/epoll.h HAVE_EPOLL_CREATE)
 
@@ -165,12 +183,17 @@ check_symbol_exists(mlockall sys/mman.h HAVE_MLOCKALL)
 
 check_symbol_exists(sendmsg sys/socket.h HAVE_SENDMSG)
 check_symbol_exists(recvmsg sys/socket.h HAVE_RECVMSG)
-check_symbol_exists(cmsghdr sys/socket.h HAVE_CMSGHDR)
 check_symbol_exists(openlog syslog.h HAVE_OPENLOG)
 check_symbol_exists(syslog syslog.h HAVE_SYSLOG)
 check_symbol_exists(getgrnam grp.h HAVE_GETGRNAM)
 check_symbol_exists(getpwnam pwd.h HAVE_GETPWNAM)
 check_symbol_exists(getsockname sys/socket.h HAVE_GETSOCKNAME)
+check_symbol_exists(getrlimit "sys/time.h;sys/resource.h" HAVE_GETRLIMIT)
+
+# Checking for existence of structs with check_symbol_exists does not work,
+# so we use check_struct_hash_member with a member instead
+check_struct_has_member("struct cmsghdr" cmsg_len sys/socket.h HAVE_CMSGHDR)
+
 
 # Some OS (e.g. FreeBSD) need some basic headers to allow
 # including network headers
@@ -199,7 +222,6 @@ check_include_files(libgen.h HAVE_LIBGEN_H)
 check_include_files(net/if.h HAVE_NET_IF_H)
 check_include_files("${NETEXTRA};netinet/ip.h" HAVE_NETINET_IP_H)
 check_include_files(arpa/inet.h HAVE_ARPA_INET_H)
-check_include_files(net/if_utun.h HAVE_NET_UTUN_H)
 check_include_files(sys/ioctl.h HAVE_SYS_IOCTL_H)
 check_include_files(sys/inotify.h HAVE_SYS_INOTIFY_H)
 check_include_files("${NETEXTRA};sys/uio.h" HAVE_SYS_UIO_H)
@@ -235,9 +257,33 @@ if (${ENABLE_PKCS11})
     pkg_search_module(pkcs11-helper libpkcs11-helper-1 REQUIRED IMPORTED_TARGET)
 endif ()
 
+function(check_mbed_configuration)
+    if (NOT (MBED_INCLUDE_PATH STREQUAL "") )
+        set(CMAKE_REQUIRED_INCLUDES ${MBED_INCLUDE_PATH})
+    endif ()
+    if (NOT (MBED_LIBRARY_PATH STREQUAL ""))
+        set(CMAKE_REQUIRED_LINK_OPTIONS "-L${MBED_LIBRARY_PATH}")
+    endif ()
+    set(CMAKE_REQUIRED_LIBRARIES "mbedtls;mbedx509;mbedcrypto")
+    check_symbol_exists(mbedtls_ctr_drbg_update_ret mbedtls/ctr_drbg.h HAVE_MBEDTLS_CTR_DRBG_UPDATE_RET)
+    check_symbol_exists(mbedtls_ssl_conf_export_keys_ext_cb mbedtls/ssl.h HAVE_MBEDTLS_SSL_CONF_EXPORT_KEYS_EXT_CB)
+    check_include_files(psa/crypto.h HAVE_MBEDTLS_PSA_CRYPTO_H)
+endfunction()
+
+if (${MBED})
+    check_mbed_configuration()
+endif()
+
 function(add_library_deps target)
     if (${MBED})
-        target_link_libraries(${target} -lmbedtls -lmbedx509 -lmbedcrypto)
+        if (NOT (MBED_INCLUDE_PATH STREQUAL "") )
+            target_include_directories(${target} PRIVATE ${MBED_INCLUDE_PATH})
+        endif ()
+        if(NOT (MBED_LIBRARY_PATH STREQUAL ""))
+            target_link_directories(${target} PRIVATE ${MBED_LIBRARY_PATH})
+        endif ()
+
+        target_link_libraries(${target} PRIVATE -lmbedtls -lmbedx509 -lmbedcrypto)
     elseif (${WOLFSSL})
         pkg_search_module(wolfssl wolfssl REQUIRED)
         target_link_libraries(${target} PUBLIC ${wolfssl_LINK_LIBRARIES})
@@ -254,6 +300,13 @@ function(add_library_deps target)
         endif ()
 
     endif ()
+
+    if (MINGW)
+        target_compile_definitions(${target} PRIVATE
+                -DWIN32_LEAN_AND_MEAN
+                -DNTDDI_VERSION=NTDDI_VISTA -D_WIN32_WINNT=_WIN32_WINNT_VISTA
+        )
+    endif()
 
     # optional dependencies
     target_link_libraries(${target} PUBLIC
@@ -286,7 +339,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR} src/compat include)
 
 add_custom_command(
     OUTPUT always_rebuild config-version.h
-    COMMAND ${PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/contrib/cmake/git-version.py
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/contrib/cmake/git-version.py
     )
 set(HAVE_CONFIG_VERSION_H YES)
 
@@ -312,14 +365,11 @@ set(SOURCE_FILES
     src/compat/compat-dirname.c
     src/compat/compat-gettimeofday.c
     src/compat/compat-strsep.c
-    src/compat/compat-versionhelpers.h
     src/openvpn/argv.c
     src/openvpn/argv.h
     src/openvpn/base64.c
     src/openvpn/base64.h
     src/openvpn/basic.h
-    src/openvpn/block_dns.h
-    src/openvpn/block_dns.c
     src/openvpn/buffer.c
     src/openvpn/buffer.h
     src/openvpn/circ_list.h
@@ -337,6 +387,8 @@ set(SOURCE_FILES
     src/openvpn/crypto.c
     src/openvpn/crypto.h
     src/openvpn/crypto_backend.h
+    src/openvpn/crypto_epoch.c
+    src/openvpn/crypto_epoch.h
     src/openvpn/crypto_openssl.c
     src/openvpn/crypto_openssl.h
     src/openvpn/crypto_mbedtls.c
@@ -487,6 +539,8 @@ set(SOURCE_FILES
     src/openvpn/tls_crypt.c
     src/openvpn/tun.c
     src/openvpn/tun.h
+    src/openvpn/tun_afunix.c
+    src/openvpn/tun_afunix.h
     src/openvpn/networking_sitnl.c
     src/openvpn/networking_freebsd.c
     src/openvpn/auth_token.c
@@ -499,6 +553,8 @@ set(SOURCE_FILES
     src/openvpn/ssl_util.h
     src/openvpn/vlan.c
     src/openvpn/vlan.h
+    src/openvpn/wfp_block.c
+    src/openvpn/wfp_block.h
     src/openvpn/win32.c
     src/openvpn/win32-util.c
     src/openvpn/win32.h
@@ -511,11 +567,7 @@ add_executable(openvpn ${SOURCE_FILES})
 
 add_library_deps(openvpn)
 
-if (MINGW)
-    target_compile_options(openvpn PRIVATE
-        -DWIN32_LEAN_AND_MEAN
-        -DNTDDI_VERSION=NTDDI_VISTA -D_WIN32_WINNT=_WIN32_WINNT_VISTA
-        )
+if(MINGW)
     target_compile_options(openvpn PRIVATE -municode -UUNICODE)
     target_link_options(openvpn PRIVATE -municode)
 endif()
@@ -558,6 +610,8 @@ if (BUILD_TESTING)
         "test_packet_id"
         "test_pkt"
         "test_provider"
+        "test_ssl"
+        "test_user_pass"
         )
 
     if (WIN32)
@@ -573,7 +627,8 @@ if (BUILD_TESTING)
         check_linker_flag(C -Wl,--wrap=parse_line LD_SUPPORTS_WRAP)
     endif()
 
-    if (${LD_SUPPORTS_WRAP})
+    # Clang-cl (which is also MSVC) is wrongly detected to support wrap
+    if (NOT MSVC AND "${LD_SUPPORTS_WRAP}")
         list(APPEND unit_tests
             "test_argv"
             "test_tls_crypt"
@@ -616,6 +671,10 @@ if (BUILD_TESTING)
         # test_networking needs special environment
         if (NOT ${test_name} STREQUAL "test_networking")
             add_test(${test_name} ${test_name})
+            # for compat with autotools make check
+            set(_UT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit_tests/openvpn)
+            set_tests_properties(${test_name} PROPERTIES
+                ENVIRONMENT "srcdir=${_UT_SOURCE_DIR}")
         endif ()
         add_executable(${test_name}
             tests/unit_tests/openvpn/${test_name}.c
@@ -630,6 +689,10 @@ if (BUILD_TESTING)
         target_link_libraries(${test_name} PUBLIC ${CMOCKA_LIBRARIES})
 
         target_include_directories(${test_name} PRIVATE src/openvpn)
+
+        # for compat with IDEs like Clion that ignore the tests properties
+        # for the environment variable srcdir when running tests as fallback
+        target_compile_definitions(${test_name} PRIVATE "-DUNIT_TEST_SOURCEDIR=\"${CMAKE_SOURCE_DIR}/tests/unit_tests/openvpn\"")
 
         if (NOT ${test_name} STREQUAL "test_buffer")
             target_sources(${test_name} PRIVATE
@@ -655,6 +718,7 @@ if (BUILD_TESTING)
     target_sources(test_crypto PRIVATE
         src/openvpn/crypto_mbedtls.c
         src/openvpn/crypto_openssl.c
+        src/openvpn/crypto_epoch.c
         src/openvpn/crypto.c
         src/openvpn/otime.c
         src/openvpn/packet_id.c
@@ -662,10 +726,37 @@ if (BUILD_TESTING)
         src/openvpn/mss.c
         )
 
+    target_sources(test_ssl PRIVATE
+            tests/unit_tests/openvpn/mock_management.c
+            tests/unit_tests/openvpn/mock_ssl_dependencies.c
+            tests/unit_tests/openvpn/mock_win32_execve.c
+            src/openvpn/argv.c
+            src/openvpn/base64.c
+            src/openvpn/crypto.c
+            src/openvpn/crypto_mbedtls.c
+            src/openvpn/crypto_openssl.c
+            src/openvpn/cryptoapi.c
+            src/openvpn/env_set.c
+            src/openvpn/mss.c
+            src/openvpn/mtu.c
+            src/openvpn/options_util.c
+            src/openvpn/otime.c
+            src/openvpn/packet_id.c
+            src/openvpn/run_command.c
+            src/openvpn/ssl_mbedtls.c
+            src/openvpn/ssl_openssl.c
+            src/openvpn/ssl_util.c
+            src/openvpn/ssl_verify_mbedtls.c
+            src/openvpn/ssl_verify_openssl.c
+            src/openvpn/xkey_helper.c
+            src/openvpn/xkey_provider.c
+    )
+
     target_sources(test_misc PRIVATE
         tests/unit_tests/openvpn/mock_get_random.c
         src/openvpn/options_util.c
         src/openvpn/ssl_util.c
+        src/openvpn/list.c
         )
 
     target_sources(test_ncp PRIVATE
@@ -708,6 +799,15 @@ if (BUILD_TESTING)
         src/openvpn/xkey_provider.c
         src/openvpn/xkey_helper.c
         src/openvpn/base64.c
+        )
+
+    target_sources(test_user_pass PRIVATE
+        tests/unit_tests/openvpn/mock_get_random.c
+        tests/unit_tests/openvpn/mock_win32_execve.c
+        src/openvpn/base64.c
+        src/openvpn/console.c
+        src/openvpn/env_set.c
+        src/openvpn/run_command.c
         )
 
     if (TARGET test_argv)

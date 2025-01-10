@@ -1,9 +1,9 @@
 /*
  *  Interface to linux dco networking code
  *
- *  Copyright (C) 2020-2023 Antonio Quartulli <a@unstable.cc>
- *  Copyright (C) 2020-2023 Arne Schwabe <arne@rfc2549.org>
- *  Copyright (C) 2020-2023 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2020-2024 Antonio Quartulli <a@unstable.cc>
+ *  Copyright (C) 2020-2024 Arne Schwabe <arne@rfc2549.org>
+ *  Copyright (C) 2020-2024 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -80,6 +80,12 @@ resolve_ovpn_netlink_id(int msglevel)
 {
     int ret;
     struct nl_sock *nl_sock = nl_socket_alloc();
+
+    if (!nl_sock)
+    {
+        msg(msglevel, "Allocating net link socket failed");
+        return -ENOMEM;
+    }
 
     ret = genl_connect(nl_sock);
     if (ret)
@@ -214,7 +220,7 @@ mapped_v4_to_v6(struct sockaddr *sock, struct gc_arena *gc)
 int
 dco_new_peer(dco_context_t *dco, unsigned int peerid, int sd,
              struct sockaddr *localaddr, struct sockaddr *remoteaddr,
-             struct in_addr *remote_in4, struct in6_addr *remote_in6)
+             struct in_addr *vpn_ipv4, struct in6_addr *vpn_ipv6)
 {
     struct gc_arena gc = gc_new();
     const char *remotestr = "[undefined]";
@@ -257,14 +263,14 @@ dco_new_peer(dco_context_t *dco, unsigned int peerid, int sd,
     }
 
     /* Set the primary VPN IP addresses of the peer */
-    if (remote_in4)
+    if (vpn_ipv4)
     {
-        NLA_PUT_U32(nl_msg, OVPN_NEW_PEER_ATTR_IPV4, remote_in4->s_addr);
+        NLA_PUT_U32(nl_msg, OVPN_NEW_PEER_ATTR_IPV4, vpn_ipv4->s_addr);
     }
-    if (remote_in6)
+    if (vpn_ipv6)
     {
         NLA_PUT(nl_msg, OVPN_NEW_PEER_ATTR_IPV6, sizeof(struct in6_addr),
-                remote_in6);
+                vpn_ipv6);
     }
     nla_nest_end(nl_msg, attr);
 
@@ -1047,7 +1053,7 @@ dco_event_set(dco_context_t *dco, struct event_set *es, void *arg)
 }
 
 const char *
-dco_get_supported_ciphers()
+dco_get_supported_ciphers(void)
 {
     return "AES-128-GCM:AES-256-GCM:AES-192-GCM:CHACHA20-POLY1305";
 }

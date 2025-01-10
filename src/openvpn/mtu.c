@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2023 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -167,7 +167,7 @@ calc_options_string_link_mtu(const struct options *o, const struct frame *frame)
      */
     const char *ciphername = o->ciphername;
 
-    unsigned int overhead = 0;
+    size_t overhead = 0;
 
     if (strcmp(o->ciphername, "BF-CBC") == 0)
     {
@@ -185,7 +185,7 @@ calc_options_string_link_mtu(const struct options *o, const struct frame *frame)
      * the ciphers are actually valid for non tls in occ calucation */
     init_key_type(&occ_kt, ciphername, o->authname, true, false);
 
-    unsigned int payload = frame_calculate_payload_size(frame, o, &occ_kt);
+    size_t payload = frame_calculate_payload_size(frame, o, &occ_kt);
     overhead += frame_calculate_protocol_header_size(&occ_kt, o, true);
 
     return payload + overhead;
@@ -203,7 +203,7 @@ frame_print(const struct frame *frame,
         buf_printf(&out, "%s ", prefix);
     }
     buf_printf(&out, "[");
-    buf_printf(&out, " mss_fix:%d", frame->mss_fix);
+    buf_printf(&out, " mss_fix:%" PRIu16, frame->mss_fix);
 #ifdef ENABLE_FRAGMENT
     buf_printf(&out, " max_frag:%d", frame->max_fragment_size);
 #endif

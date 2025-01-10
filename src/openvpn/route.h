@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2023 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -242,6 +242,18 @@ struct iroute_ipv6 {
     unsigned int netbits;
     struct iroute_ipv6 *next;
 };
+
+/**
+ * Get the decision whether to block traffic to local networks while the VPN
+ * is connected. This definitely returns false when not redirecting the gateway
+ * or when the 'block-local' flag is not set. Also checks for other
+ * prerequisites to redirect local networks into the tunnel.
+ *
+ * @param rl const pointer to the struct route_list to base the decision on.
+ *
+ * @return boolean indicating whether local traffic should be blocked.
+ */
+bool block_local_needed(const struct route_list *rl);
 
 struct route_option_list *new_route_option_list(struct gc_arena *a);
 
