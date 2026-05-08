@@ -757,7 +757,7 @@ ifconfig_pool_test(in_addr_t start, in_addr_t end)
             break;
         }
         msg(M_INFO | M_NOPREFIX, "IFCONFIG_POOL TEST pass 1: l=%s r=%s cn=%s",
-            print_in_addr_t(local, 0, &gc), print_in_addr_t(remote, 0, &gc), cn);
+            print_in_addr_t(local, 0, &gc), print_in_addr_t(remote, 0, &gc), cn ? cn : "[NULL]");
         array[i] = h;
     }
 
@@ -793,7 +793,7 @@ ifconfig_pool_test(in_addr_t start, in_addr_t end)
             break;
         }
         msg(M_INFO | M_NOPREFIX, "IFCONFIG_POOL TEST pass 3: l=%s r=%s cn=%s",
-            print_in_addr_t(local, 0, &gc), print_in_addr_t(remote, 0, &gc), cn);
+            print_in_addr_t(local, 0, &gc), print_in_addr_t(remote, 0, &gc), cn ? cn : "[NULL]");
         array[i] = h;
     }
 
