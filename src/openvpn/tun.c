@@ -5772,13 +5772,10 @@ tun_try_open_device(struct tuntap *tt, const char *device_guid,
                 continue;
             }
 
-            if (tt->backend_driver == DRIVER_DCO)
+            const char *last_sep = strrchr(dev_if->device_interface, '\\');
+            if (!last_sep || strcmp(last_sep + 1, DCO_WIN_REFERENCE_STRING) != 0)
             {
-                char *last_sep = strrchr(dev_if->device_interface, '\\');
-                if (!last_sep || strcmp(last_sep + 1, DCO_WIN_REFERENCE_STRING) != 0)
-                {
-                    continue;
-                }
+                continue;
             }
 
             path = dev_if->device_interface;
