@@ -64,14 +64,13 @@ alloc_buf(size_t size)
 #endif
 {
     struct buffer buf;
+    CLEAR(buf);
 
     if (!buf_size_valid(size))
     {
         buf_size_error(size);
     }
     buf.capacity = (int)size;
-    buf.offset = 0;
-    buf.len = 0;
 #ifdef DMALLOC
     buf.data = openvpn_dmalloc(file, line, size);
 #else
@@ -90,13 +89,13 @@ alloc_buf_gc(size_t size, struct gc_arena *gc)
 #endif
 {
     struct buffer buf;
+    CLEAR(buf);
+
     if (!buf_size_valid(size))
     {
         buf_size_error(size);
     }
     buf.capacity = (int)size;
-    buf.offset = 0;
-    buf.len = 0;
 #ifdef DMALLOC
     buf.data = (uint8_t *)gc_malloc_debug(size, false, gc, file, line);
 #else
@@ -120,6 +119,10 @@ clone_buf(const struct buffer *buf)
     ret.capacity = buf->capacity;
     ret.offset = buf->offset;
     ret.len = buf->len;
+#ifdef BUF_INIT_TRACKING
+    ret.debug_file = buf->debug_file;
+    ret.debug_line = buf->debug_line;
+#endif
 #ifdef DMALLOC
     ret.data = (uint8_t *)openvpn_dmalloc(file, line, buf->capacity);
 #else
@@ -140,6 +143,7 @@ buf_init_debug(struct buffer *buf, int offset, const char *file, int line)
     return buf_init_dowork(buf, offset);
 }
 
+#ifdef VERIFY_ALIGNMENT
 static inline int
 buf_debug_line(const struct buffer *buf)
 {
@@ -151,6 +155,7 @@ buf_debug_file(const struct buffer *buf)
 {
     return buf->debug_file;
 }
+#endif
 
 #else /* ifdef BUF_INIT_TRACKING */
 
@@ -1152,7 +1157,7 @@ valign4(const struct buffer *buf, const char *file, const int line)
     if (buf && buf->len)
     {
         msglvl_t msglevel = D_ALIGN_DEBUG;
-        const unsigned int u = (unsigned int)BPTR(buf);
+        const uintptr_t u = (uintptr_t)BPTR(buf);
 
         if (u & (PAYLOAD_ALIGN - 1))
         {
