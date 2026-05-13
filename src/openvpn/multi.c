@@ -3054,8 +3054,8 @@ multi_process_post(struct multi_context *m, struct multi_instance *mi, const uns
 
 #ifdef MULTI_DEBUG_EVENT_LOOP
         printf("POST %s[%d] to=%d lo=%d/%d w=%" PRIi64 "/%ld\n", id(mi), (int)(mi == m->pending),
-               mi ? mi->context.c2.to_tun.len : -1, mi ? mi->context.c2.to_link.len : -1,
-               (mi && mi->context.c2.fragment) ? mi->context.c2.fragment->outgoing.len : -1,
+               mi->context.c2.to_tun.len, mi->context.c2.to_link.len,
+               mi->context.c2.fragment ? mi->context.c2.fragment->outgoing.len : -1,
                (int64_t)mi->context.c2.timeval.tv_sec, (long)mi->context.c2.timeval.tv_usec);
 #endif
     }
