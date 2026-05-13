@@ -508,7 +508,7 @@ schedule_adapter_create(_Inout_ struct msica_arg_seq *seq,
             *iTicks += MSICA_ADAPTER_TICK_SIZE;
             break;
         }
-        else if (wcsicmp(szDisplayName, pAdapterOther->szName) == 0)
+        else if (_wcsicmp(szDisplayName, pAdapterOther->szName) == 0)
         {
             /* Adapter with a same name found. */
             for (LPCWSTR hwid = pAdapterOther->szzHardwareIDs;; hwid += wcslen(hwid) + 1)
@@ -521,7 +521,7 @@ schedule_adapter_create(_Inout_ struct msica_arg_seq *seq,
                     dwResult = ERROR_ALREADY_EXISTS;
                     goto cleanup_pAdapterList;
                 }
-                else if (wcsicmp(hwid, szHardwareId) == 0)
+                else if (_wcsicmp(hwid, szHardwareId) == 0)
                 {
                     /* This is an adapter with the requested hardware ID. We already have what we
                      * want! */
@@ -583,7 +583,7 @@ schedule_adapter_delete(_Inout_ struct msica_arg_seq *seq,
     for (struct tap_adapter_node *pAdapter = pAdapterList; pAdapter != NULL;
          pAdapter = pAdapter->pNext)
     {
-        if (wcsicmp(szDisplayName, pAdapter->szName) == 0)
+        if (_wcsicmp(szDisplayName, pAdapter->szName) == 0)
         {
             /* Adapter found. */
             WCHAR szArgument[8 /*disable=|enable=|delete=*/
@@ -1084,7 +1084,7 @@ ProcessDeferredAction(_In_ MSIHANDLE hInstall)
                 for (struct tap_adapter_node *pAdapter = pAdapterList; pAdapter != NULL;
                      pAdapter = pAdapter->pNext)
                 {
-                    if (wcsicmp(szName, pAdapter->szName) == 0)
+                    if (_wcsicmp(szName, pAdapter->szName) == 0)
                     {
                         /* Adapter found. */
                         dwResult = tap_delete_adapter(NULL, &pAdapter->guid, &bRebootRequired);

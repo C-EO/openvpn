@@ -235,7 +235,7 @@ test_certificate_template(const char *cert_prop, const CERT_CONTEXT *cert_ctx)
         if (pvext && cbext >= sizeof(CERT_TEMPLATE_EXT))
         {
             const CERT_TEMPLATE_EXT *cte = (const CERT_TEMPLATE_EXT *)pvext;
-            if (!stricmp(cert_prop, cte->pszObjId))
+            if (!_stricmp(cert_prop, cte->pszObjId))
             {
                 /* found direct OID match with certificate property specified */
                 gc_free(&gc);
@@ -244,7 +244,7 @@ test_certificate_template(const char *cert_prop, const CERT_CONTEXT *cert_ctx)
 
             const CRYPT_OID_INFO *tmpl_oid =
                 find_oid(CRYPT_OID_INFO_NAME_KEY, tmpl_name, CRYPT_TEMPLATE_OID_GROUP_ID);
-            if (tmpl_oid && !stricmp(tmpl_oid->pszOID, cte->pszObjId))
+            if (tmpl_oid && !_stricmp(tmpl_oid->pszOID, cte->pszObjId))
             {
                 /* found OID match in extension against resolved key */
                 gc_free(&gc);
