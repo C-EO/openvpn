@@ -3487,7 +3487,7 @@ RunOpenvpn(LPVOID p)
     swprintf(ovpn_pipe_name, _countof(ovpn_pipe_name),
              L"\\\\.\\pipe\\" _L(PACKAGE) L"%ls\\service_%lu_%ls", service_instance,
              GetCurrentThreadId(), pipe_uuid_str);
-    RpcStringFree(&pipe_uuid_str);
+    RpcStringFreeW(&pipe_uuid_str);
 
     /* make a security descriptor for the named pipe with access
      * restricted to the user and SYSTEM
